@@ -46,3 +46,20 @@ by having the biggest debtor pay the biggest creditor. This is exact for up to 1
 balance. Above that it falls back to the greedy method, which needs at most *n − 1* payments.
 
 All money is calculated in whole cents, so there are no floating-point rounding errors.
+
+## Development
+
+No build step. Edit the files and open `index.html` in a browser.
+
+| File | What it does |
+| --- | --- |
+| `index.html` | Page structure |
+| `style.css` | Felt table, playing-card panels, Vegas marquee, royal-card finale |
+| `app.js` | State, money maths, food split, minimal-payment settlement, WhatsApp share |
+| `sound.js` | Coin, jackpot and payment sounds, synthesised with the Web Audio API |
+
+**Before pushing a change, bump the version number.** `index.html` loads its files as `style.css?v=7`,
+`sound.js?v=7` and `app.js?v=7`. Raise that number in all three places (e.g. to `v=8`) whenever you change any
+of them. Otherwise browsers may keep using a cached old copy for up to 10 minutes after a deploy.
+
+Every push to `main` deploys to GitHub Pages automatically within about a minute.
