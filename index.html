@@ -115,6 +115,7 @@
       <ol id="transfers" class="transfers"></ol>
       <p class="muted tap-hint" id="tapHint" hidden>Tap a payment to mark it as paid.</p>
       <div class="actions">
+        <button id="finish" class="btn chip gold">🏆 Finish game</button>
         <button id="whatsapp" class="btn chip wa">Share on WhatsApp</button>
         <button id="copy" class="btn chip">Copy summary</button>
         <button id="newGame" class="btn">New game (keep players)</button>
@@ -125,6 +126,18 @@
 
     <footer class="foot">Runs offline. No server, no tracking. Data is saved only in this browser's local storage.</footer>
   </main>
+  <div class="finale" id="finale" role="dialog" aria-modal="true" aria-labelledby="finale-h" hidden>
+    <div class="finale-inner">
+      <h2 id="finale-h" class="neon">Good game!</h2>
+      <p class="finale-sub" id="finaleSub"></p>
+      <div class="royal-table" id="royalCards"></div>
+      <div class="finale-actions">
+        <button id="finaleShare" class="btn chip wa">Share on WhatsApp</button>
+        <button id="finaleClose" class="btn chip dark">Back to table</button>
+      </div>
+    </div>
+  </div>
+
   <script src="sound.js"></script>
   <script src="app.js"></script>
 </body>

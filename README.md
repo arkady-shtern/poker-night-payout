@@ -19,6 +19,8 @@ It works offline. The fonts come from Google Fonts and fall back to system fonts
 - **Food and drinks**: log each item, who paid for it, and who shares it. It's split evenly to the cent and settled in the same payments as the poker money.
 - **Fewest possible payments**: finds the provably minimal set of payments (see below).
 - **Cash pot mode**: when buy-ins were paid in cash up front, the pot pays each player their stack, adjusted for food.
+- **🏆 Finish game**: deals each needed payment onto a floating royal card (King, Queen, Jack, Ace) in front of
+  the page, with a jackpot sound. Tap a card to stamp it PAID. Share to WhatsApp from there, or go back to the table.
 - **Share on WhatsApp**: opens WhatsApp with a short message: *Good game!* followed by only the payments still
   to be made. Payments already marked paid are left out.
 - **Copy summary**: copies the full results, with each player's breakdown and the food, as text.

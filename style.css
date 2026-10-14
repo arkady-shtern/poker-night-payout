@@ -360,6 +360,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--felt); }
   margin: 3px;
 }
 .btn.chip:hover { background: #9a1a23; box-shadow: 0 0 0 3px #9a1a23, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.gold { color: #2a1a00; background: #e0b84a; border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 3px #c9971f, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.gold:hover { background: #d4a73a; box-shadow: 0 0 0 3px #b8861a, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.dark { background: #1a1a1a; box-shadow: 0 0 0 3px #1a1a1a, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.dark:hover { background: #333; box-shadow: 0 0 0 3px #333, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.wa { background: #1f9e55; box-shadow: 0 0 0 3px #1f9e55, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.wa:hover { background: #17834a; box-shadow: 0 0 0 3px #17834a, 0 4px 10px rgba(0, 0, 0, 0.25); }
 
@@ -446,7 +450,180 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--felt); }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .foot { text-align: center; margin-top: 24px; color: var(--on-felt); opacity: 0.7; font-size: 0.85rem; }
 
+/* ---------- Finale: payments dealt onto floating royal cards ---------- */
+body.no-scroll { overflow: hidden; }
+
+.finale {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  overflow-y: auto;
+  padding: 32px 16px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(60, 10, 16, 0.82), rgba(0, 0, 0, 0.92));
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  animation: finale-in 0.3s ease-out;
+}
+.finale[hidden] { display: none; }
+@keyframes finale-in { from { opacity: 0; } }
+
+.finale-inner { margin: auto; width: 100%; max-width: 980px; text-align: center; }
+.finale .neon { margin: 0; font-size: clamp(2.2rem, 9vw, 4.2rem); }
+.finale-sub { margin: 12px 0 30px; color: var(--on-felt); font-size: 1.05rem; }
+.finale-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 38px; }
+
+.royal-table { display: flex; flex-wrap: wrap; justify-content: center; gap: 26px; }
+
+.royal {
+  --w: 172px;
+  position: relative;
+  width: var(--w);
+  aspect-ratio: 5 / 7;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  color: #1a1a1a;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(217, 180, 74, 0.18), transparent 60%),
+    #fffaf0;
+  box-shadow:
+    0 0 0 3px #d9b44a,
+    0 0 0 6px #7a1018,
+    0 0 0 7px #d9b44a,
+    0 22px 40px rgba(0, 0, 0, 0.6),
+    0 0 50px rgba(255, 200, 80, 0.25);
+  transform: rotate(var(--rot));
+  animation:
+    deal 0.75s cubic-bezier(0.2, 0.8, 0.25, 1.15) both,
+    float 3.8s ease-in-out infinite;
+  animation-delay: var(--deal-delay), var(--float-delay);
+  transition: box-shadow 0.2s;
+}
+.royal:hover, .royal:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px #ffe08a,
+    0 0 0 6px #7a1018,
+    0 0 0 7px #ffe08a,
+    0 22px 40px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(255, 210, 100, 0.6);
+}
+/* Inner ornamental frame */
+.royal::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border: 3px double #b3202a;
+  border-radius: 7px;
+  pointer-events: none;
+}
+.royal.black::before { border-color: #1a1a1a; }
+
+@keyframes deal {
+  from { opacity: 0; transform: translateY(-110vh) rotate(-40deg) scale(0.6); }
+  to { opacity: 1; transform: translateY(0) rotate(var(--rot)) scale(1); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(var(--rot)); }
+  50% { transform: translateY(-12px) rotate(calc(var(--rot) * -1)); }
+}
+
+.royal .r-idx {
+  position: absolute;
+  top: 14px;
+  left: 15px;
+  font-family: "Limelight", Georgia, serif;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: #b3202a;
+}
+.royal.black .r-idx { color: #1a1a1a; }
+.royal .r-idx.br { top: auto; left: auto; bottom: 14px; right: 15px; transform: rotate(180deg); }
+
+.royal .r-body {
+  position: absolute;
+  inset: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.royal .r-crown {
+  font-size: 2rem;
+  line-height: 1;
+  color: #c9971f;
+  text-shadow: 0 1px 0 #7a5600, 0 0 10px rgba(255, 200, 80, 0.5);
+}
+.royal .r-title {
+  font-family: "Limelight", Georgia, serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #8a7a55;
+  margin-bottom: 6px;
+}
+.royal .r-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "Limelight", Georgia, serif;
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.royal .r-pays {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #8a7a55;
+}
+.royal .r-pays::before, .royal .r-pays::after { content: ""; width: 18px; height: 1px; background: #d9b44a; }
+.royal .r-amt {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 2px solid #d9b44a;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #7a1018;
+  font-variant-numeric: tabular-nums;
+}
+.royal .r-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 2px 12px;
+  border: 4px solid #c0362c;
+  border-radius: 6px;
+  font-family: "Limelight", Georgia, serif;
+  font-size: 1.9rem;
+  letter-spacing: 0.08em;
+  color: #c0362c;
+  background: rgba(255, 250, 240, 0.7);
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(-20deg) scale(2.2);
+  transition: opacity 0.2s, transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+  pointer-events: none;
+}
+.royal.paid .r-stamp { opacity: 0.92; transform: translate(-50%, -50%) rotate(-20deg) scale(1); }
+.royal.paid .r-body { opacity: 0.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .royal { animation: none; }
+  .finale { animation: none; }
+}
+
 @media (max-width: 680px) {
+  .royal { --w: 146px; }
+  .royal .r-name { font-size: 1rem; }
+  .royal .r-amt { font-size: 1.35rem; }
+  .royal-table { gap: 18px; }
   body { box-shadow: none; }
   .card { padding: 22px 16px; }
   .table-decor { opacity: 0.45; }

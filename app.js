@@ -707,6 +707,101 @@
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   });
 
+  // ---------- Finale: needed payments dealt onto royal cards ----------
+
+  const finale = $('#finale');
+  const royalEl = $('#royalCards');
+  const ROYALS = [
+    { rank: 'K', title: 'King' },
+    { rank: 'Q', title: 'Queen' },
+    { rank: 'J', title: 'Jack' },
+    { rank: 'A', title: 'Ace' },
+  ];
+  const ROYAL_SUITS = ['♥', '♠', '♦', '♣'];
+
+  function finaleSubtitle(transfers) {
+    const paid = new Set(state.paid);
+    const n = transfers.length;
+    const left = transfers.filter((t) => !paid.has(transferKey(t))).length;
+    if (!n) return 'Nobody owes anything. All square!';
+    if (!left) return 'Everyone has paid. All settled!';
+    return `${left} of ${n} payment${n === 1 ? '' : 's'} to go. Tap a card when it's paid.`;
+  }
+
+  function dealRoyalCards() {
+    const { transfers } = currentSettlement(compute());
+    const paid = new Set(state.paid);
+    $('#finaleSub').textContent = finaleSubtitle(transfers);
+
+    royalEl.innerHTML = transfers.map((t, i) => {
+      const royal = ROYALS[i % ROYALS.length];
+      const suit = ROYAL_SUITS[i % ROYAL_SUITS.length];
+      const black = suit === '♠' || suit === '♣' ? ' black' : '';
+      const key = transferKey(t);
+      const isPaid = paid.has(key);
+      const rot = [-4, 3, -2, 5][i % 4];
+      const style = `--rot:${rot}deg;--deal-delay:${(i * 0.16).toFixed(2)}s;`
+        + `--float-delay:${(0.75 + i * 0.16 + (i % 3) * 0.5).toFixed(2)}s`;
+      const idx = `${royal.rank}<br>${suit}`;
+      return `
+        <button type="button" class="royal${black}${isPaid ? ' paid' : ''}" style="${style}"
+                data-key="${escapeHtml(key)}" aria-pressed="${isPaid}"
+                aria-label="${escapeHtml(`${t.from} pays ${t.to} ${fmt(t.amt)}`)}">
+          <span class="r-idx" aria-hidden="true">${idx}</span>
+          <span class="r-body" aria-hidden="true">
+            <span class="r-crown">♚</span>
+            <span class="r-title">${royal.title} of ${suit}</span>
+            <span class="r-name">${escapeHtml(t.from)}</span>
+            <span class="r-pays">pays</span>
+            <span class="r-name">${escapeHtml(t.to)}</span>
+            <span class="r-amt">${fmt(t.amt)}</span>
+          </span>
+          <span class="r-idx br" aria-hidden="true">${idx}</span>
+          <span class="r-stamp" aria-hidden="true">PAID</span>
+        </button>`;
+    }).join('');
+  }
+
+  function openFinale() {
+    if (!compute().balanced) {
+      $('#copyMsg').textContent = 'Make the bank balance first, then finish the game.';
+      return;
+    }
+    dealRoyalCards();
+    finale.hidden = false;
+    document.body.classList.add('no-scroll');
+    Sound.jackpot();
+    $('#finaleClose').focus();
+  }
+
+  function closeFinale() {
+    finale.hidden = true;
+    document.body.classList.remove('no-scroll');
+    $('#finish').focus();
+  }
+
+  $('#finish').addEventListener('click', openFinale);
+  $('#finaleClose').addEventListener('click', closeFinale);
+  $('#finaleShare').addEventListener('click', () => $('#whatsapp').click());
+  finale.addEventListener('click', (e) => { if (e.target === finale) closeFinale(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !finale.hidden) closeFinale();
+  });
+
+  // Toggle in place (no re-deal) so the other cards keep floating.
+  royalEl.addEventListener('click', (e) => {
+    const card = e.target.closest('.royal');
+    if (!card) return;
+    const key = card.dataset.key;
+    const nowPaid = !state.paid.includes(key);
+    state.paid = nowPaid ? [...state.paid, key] : state.paid.filter((k) => k !== key);
+    card.classList.toggle('paid', nowPaid);
+    card.setAttribute('aria-pressed', String(nowPaid));
+    if (nowPaid) Sound.pay();
+    update();
+    $('#finaleSub').textContent = finaleSubtitle(currentSettlement(compute()).transfers);
+  });
+
   $('#copy').addEventListener('click', async () => {
     const text = summaryText();
     const msg = $('#copyMsg');
