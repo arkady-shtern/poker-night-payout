@@ -5,7 +5,8 @@ It runs entirely in the browser: no server, no backend, no database, no API keys
 
 ## Use it
 
-Open `index.html` in any browser. That's it, and it works offline.
+Live at **https://arkady-shtern.github.io/poker-night-payout/**, or open `index.html` in any browser.
+It works offline. The fonts come from Google Fonts and fall back to system fonts without a connection.
 
 ## Features
 
@@ -19,7 +20,12 @@ Open `index.html` in any browser. That's it, and it works offline.
 - **Fewest possible payments**: finds the provably minimal set of payments (see below).
 - **Cash pot mode**: when buy-ins were paid in cash up front, the pot pays each player their stack, adjusted for food.
 - **Copy summary**: copies the results as text to paste into your group chat.
-- Saves automatically to the browser's local storage. Works on phones and in dark mode.
+- **Mark payments as paid**: tap a payment to tick it off. The copied summary shows who has paid.
+- **Las Vegas look**: a neon sign inside a marquee of chasing bulbs, with cards and chips on the felt.
+- **Casino sounds**, synthesised with the Web Audio API (no audio files): a coin sound for buy-ins, a jackpot when the
+  bank balances, and a payment chime when a payment is marked paid. The 🔊 button mutes them.
+- Saves automatically to the browser's local storage. Works on phones and in dark mode, and
+  the animations stop if your device is set to reduce motion.
 
 ## How payments are minimised
 

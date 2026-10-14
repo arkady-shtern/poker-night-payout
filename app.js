@@ -25,6 +25,7 @@
       mode: 'min',
       players: [blankPlayer(), blankPlayer(), blankPlayer(), blankPlayer()],
       food: [],
+      paid: [], // keys of settlement payments marked as paid
     };
   }
 
@@ -81,6 +82,7 @@
   // Loaded here, after the helpers that migrate() relies on.
   let state = load();
   if (!Array.isArray(state.food)) state.food = [];
+  if (!Array.isArray(state.paid)) state.paid = [];
 
   // Chips <-> real money at the configured rate (chips per 1 unit of money).
   const chipsToCents = (chips) => {
@@ -405,39 +407,65 @@
     save();
   }
 
+  const transferKey = (t) => `${t.from}→${t.to}:${t.amt}`;
+
+  // Plays the jackpot when the settlement goes from not ready to ready.
+  // Starts as null so loading a saved, already-settled game stays silent.
+  let wasReady = null;
+  function announceReady(ready) {
+    if (wasReady === false && ready) Sound.jackpot();
+    wasReady = ready;
+  }
+
   function renderTransfers(result) {
     const list = $('#transfers');
     const badge = $('#optimality');
+    const tapHint = $('#tapHint');
     $('#modeHint').textContent = state.mode === 'bank'
       ? 'Use this when everyone put cash into a pot at buy-in. The pot pays each player their stack, adjusted for food.'
       : 'Use this when no cash changed hands during the game. Poker results and food are combined into the fewest payments.';
 
-    if (!result.balanced) {
+    const showEmpty = (text) => {
       badge.textContent = '';
-      list.innerHTML = '<li class="empty">Make the bank balance first. Total in must equal total out.</li>';
-      return;
-    }
+      tapHint.hidden = true;
+      list.innerHTML = `<li class="empty">${text}</li>`;
+      announceReady(false);
+    };
+
+    if (!result.balanced) return showEmpty('Make the bank balance first. Total in must equal total out.');
     const { transfers, exact } = currentSettlement(result);
-    if (!transfers.length) {
-      badge.textContent = '';
-      list.innerHTML = '<li class="empty">Nobody owes anything.</li>';
-      return;
-    }
+    if (!transfers.length) return showEmpty('Nobody owes anything.');
+
+    // Forget "paid" marks for payments that no longer exist.
+    const keys = new Set(transfers.map(transferKey));
+    state.paid = state.paid.filter((k) => keys.has(k));
+    const paid = new Set(state.paid);
 
     const n = transfers.length;
-    badge.textContent = state.mode === 'bank'
+    const done = transfers.filter((t) => paid.has(transferKey(t))).length;
+    badge.textContent = (state.mode === 'bank'
       ? `${n} payout${n === 1 ? '' : 's'} from the pot`
       : exact
         ? `${n} payment${n === 1 ? '' : 's'}: the fewest possible`
-        : `${n} payment${n === 1 ? '' : 's'} (near-minimal: too many players for the exact search)`;
+        : `${n} payment${n === 1 ? '' : 's'} (near-minimal: too many players for the exact search)`)
+      + (done === n ? ' · all paid ✓' : done ? ` · ${done} of ${n} paid` : '');
+    tapHint.hidden = false;
 
-    list.innerHTML = transfers.map((t) => `
+    list.innerHTML = transfers.map((t) => {
+      const key = transferKey(t);
+      const isPaid = paid.has(key);
+      return `
       <li>
-        <strong>${escapeHtml(t.from)}</strong>
-        <span class="arrow">pays →</span>
-        <strong>${escapeHtml(t.to)}</strong>
-        <span class="amt">${fmt(t.amt)}</span>
-      </li>`).join('');
+        <button type="button" class="xfer${isPaid ? ' paid' : ''}" data-key="${escapeHtml(key)}" aria-pressed="${isPaid}">
+          <span class="tick" aria-hidden="true">✓</span>
+          <strong>${escapeHtml(t.from)}</strong>
+          <span class="arrow">pays →</span>
+          <strong>${escapeHtml(t.to)}</strong>
+          <span class="amt">${fmt(t.amt)}</span>
+        </button>
+      </li>`;
+    }).join('');
+    announceReady(true);
   }
 
   function summaryText() {
@@ -471,7 +499,10 @@
       const { transfers } = currentSettlement(result);
       lines.push(state.mode === 'bank' ? 'Pot payouts:' : `Payments (${transfers.length}):`);
       if (!transfers.length) lines.push('Nobody owes anything.');
-      for (const t of transfers) lines.push(`• ${t.from} → ${t.to}: ${fmt(t.amt)}`);
+      const paid = new Set(state.paid);
+      for (const t of transfers) {
+        lines.push(`• ${t.from} → ${t.to}: ${fmt(t.amt)}${paid.has(transferKey(t)) ? ' ✓ paid' : ''}`);
+      }
     }
     return lines.join('\n');
   }
@@ -548,7 +579,10 @@
     const p = btn && playerOf(btn);
     if (!p) return;
     if (btn.dataset.step) {
-      p.buyIns = Math.max(0, num(p.buyIns) + Number(btn.dataset.step));
+      const before = num(p.buyIns);
+      p.buyIns = Math.max(0, before + Number(btn.dataset.step));
+      if (p.buyIns > before) Sound.coin();
+      else if (p.buyIns < before) Sound.coinDown();
       btn.parentElement.querySelector('input').value = p.buyIns;
       update();
     } else if ('remove' in btn.dataset) {
@@ -563,6 +597,7 @@
 
   $('#addPlayer').addEventListener('click', () => {
     state.players.push(blankPlayer());
+    Sound.coin();
     renderPlayers();
     const inputs = playersEl.querySelectorAll('[data-field="name"]');
     inputs[inputs.length - 1]?.focus();
@@ -608,6 +643,7 @@
       payer: state.players[0]?.id || '',
       split: state.players.map((p) => p.id),
     });
+    Sound.coin();
     renderFood();
     const descs = foodEl.querySelectorAll('[data-ffield="desc"]');
     descs[descs.length - 1]?.focus();
@@ -619,7 +655,21 @@
     if (!confirm('Start a new game? Names and settings are kept. Buy-ins, stacks and food are reset.')) return;
     state.players = state.players.map((p) => ({ ...p, buyIns: 1, final: '' }));
     state.food = [];
+    state.paid = [];
     renderPlayers();
+  });
+
+  $('#transfers').addEventListener('click', (e) => {
+    const btn = e.target.closest('.xfer');
+    if (!btn) return;
+    const key = btn.dataset.key;
+    if (state.paid.includes(key)) {
+      state.paid = state.paid.filter((k) => k !== key);
+    } else {
+      state.paid.push(key);
+      Sound.pay();
+    }
+    update();
   });
 
   $('#clearAll').addEventListener('click', () => {
@@ -634,6 +684,7 @@
     try {
       await navigator.clipboard.writeText(text);
       msg.textContent = 'Summary copied. Paste it into your group chat.';
+      Sound.pay();
     } catch {
       const ta = document.createElement('textarea');
       ta.value = text;
@@ -642,8 +693,56 @@
       const ok = document.execCommand('copy');
       ta.remove();
       msg.textContent = ok ? 'Summary copied.' : 'Copy failed. Your browser blocked clipboard access.';
+      if (ok) Sound.pay();
     }
   });
+
+  // ---------- Sound toggle ----------
+
+  const soundBtn = $('#soundToggle');
+  function syncSoundButton() {
+    const on = Sound.enabled;
+    soundBtn.textContent = on ? '🔊' : '🔇';
+    soundBtn.setAttribute('aria-pressed', String(on));
+    soundBtn.setAttribute('aria-label', on ? 'Sound on' : 'Sound off');
+    soundBtn.title = on ? 'Sound on: click to mute' : 'Sound off: click to unmute';
+  }
+  soundBtn.addEventListener('click', () => {
+    Sound.setEnabled(!Sound.enabled);
+    syncSoundButton();
+    Sound.coin(); // only audible when just switched on
+  });
+  syncSoundButton();
+
+  // ---------- Background decor: cards and chips scattered on the felt ----------
+
+  const DECOR_CARDS = [
+    // rank, suit, left %, top %, rotation (an empty rank is a face-down card)
+    ['A', '♠', -2, 6, -18], ['K', '♥', 90, 3, 16], ['Q', '♦', 93, 46, -8], ['J', '♣', -3, 50, 12],
+    ['10', '♥', 88, 84, 24], ['A', '♦', 2, 86, -26], ['', '', 82, 22, 35], ['', '', 7, 27, -40],
+  ];
+  const DECOR_CHIPS = [
+    // colour, left %, top %, rotation
+    ['#b3202a', 10, 16, 10], ['#1a1a1a', 86, 36, 40], ['#1f4fb3', 92, 68, 0],
+    ['#b3202a', 4, 70, 20], ['#c9971f', 84, 93, 70], ['#1a1a1a', 13, 94, 30],
+  ];
+
+  function renderDecor() {
+    const cards = DECOR_CARDS.map(([rank, suit, x, y, r]) => {
+      const pos = `left:${x}%;top:${y}%;--r:${r}deg`;
+      if (!rank) return `<div class="pcard back" style="${pos}"></div>`;
+      const red = suit === '♥' || suit === '♦' ? ' red' : '';
+      return `<div class="pcard${red}" style="${pos}">
+        <span class="idx">${rank}<br>${suit}</span>
+        <span class="pip">${suit}</span>
+        <span class="idx br">${rank}<br>${suit}</span>
+      </div>`;
+    });
+    const chips = DECOR_CHIPS.map(([c, x, y, r]) =>
+      `<div class="pchip" style="--c:${c};left:${x}%;top:${y}%;--r:${r}deg"></div>`);
+    $('#decor').innerHTML = cards.join('') + chips.join('');
+  }
+  renderDecor();
 
   renderPlayers();
 })();
