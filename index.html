@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poker Night Payout</title>
+  <meta name="description" content="Work out who pays whom after a home poker game, food included. Runs entirely in your browser.">
+  <meta name="theme-color" content="#0d4a2c">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="suits" aria-hidden="true"><span>♠</span><span class="red">♥</span><span>♣</span><span class="red">♦</span></div>
+      <h1>Poker Night Payout</h1>
+      <p class="sub">Enter buy-ins, final stacks and the food bill, and get the fewest payments that settle everyone.</p>
+    </header>
+
+    <section class="card" data-suit="♠" aria-labelledby="settings-h">
+      <h2 id="settings-h">Game settings</h2>
+      <div class="settings">
+        <label class="field">
+          <span>Currency</span>
+          <input id="currency" type="text" maxlength="4" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Buy-in amount</span>
+          <input id="buyIn" type="number" min="0" step="any" inputmode="decimal">
+        </label>
+        <label class="field check">
+          <input id="useChips" type="checkbox">
+          <span>Count final stacks in chips</span>
+        </label>
+        <label class="field" id="chipsField">
+          <span>Chips per buy-in</span>
+          <input id="chipsPerBuyIn" type="number" min="0" step="any" inputmode="decimal">
+        </label>
+      </div>
+    </section>
+
+    <section class="card" data-suit="♥" aria-labelledby="players-h">
+      <div class="card-head">
+        <h2 id="players-h">Players</h2>
+        <span class="muted" id="playerCount"></span>
+      </div>
+      <div class="row row-head" aria-hidden="true">
+        <span>Name</span>
+        <span>Buy-ins</span>
+        <span id="finalHead">Cash out</span>
+        <span class="num">Net</span>
+        <span></span>
+      </div>
+      <div id="players"></div>
+      <button id="addPlayer" class="btn">+ Add player</button>
+    </section>
+
+    <section class="card" data-suit="♣" aria-labelledby="food-h">
+      <div class="card-head">
+        <h2 id="food-h">Food &amp; drinks</h2>
+        <span class="muted" id="foodTotal"></span>
+      </div>
+      <p class="muted">Add what was bought and who paid. Each item is split evenly among the people ticked, and it's settled in the same payments as the poker money.</p>
+      <div id="food"></div>
+      <button id="addFood" class="btn">+ Add food item</button>
+    </section>
+
+    <section class="card" data-suit="♦" aria-labelledby="totals-h">
+      <h2 id="totals-h">Bank check</h2>
+      <div class="totals">
+        <div class="stat"><span class="label">Total in</span><span class="value" id="totalIn"></span></div>
+        <div class="stat"><span class="label">Total out</span><span class="value" id="totalOut"></span></div>
+        <div class="stat"><span class="label">Difference</span><span class="value" id="diff"></span></div>
+      </div>
+      <p id="balanceMsg" class="msg"></p>
+      <label class="field check">
+        <input id="autoFix" type="checkbox">
+        <span>Fix counting errors by scaling every cash-out proportionally</span>
+      </label>
+    </section>
+
+    <section class="card" data-suit="♠" aria-labelledby="settle-h">
+      <h2 id="settle-h">Settlement</h2>
+      <div class="seg" role="radiogroup" aria-label="Settlement mode">
+        <label><input type="radio" name="mode" value="min"><span>Settle between players</span></label>
+        <label><input type="radio" name="mode" value="bank"><span>Pay out from cash pot</span></label>
+      </div>
+      <p class="muted" id="modeHint"></p>
+      <p class="badge" id="optimality"></p>
+      <ol id="transfers" class="transfers"></ol>
+      <div class="actions">
+        <button id="copy" class="btn chip">Copy summary</button>
+        <button id="newGame" class="btn">New game (keep players)</button>
+        <button id="clearAll" class="btn danger">Clear everything</button>
+      </div>
+      <p id="copyMsg" class="muted" role="status"></p>
+    </section>
+
+    <footer class="foot">Runs offline. No server, no tracking. Data is saved only in this browser's local storage.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
