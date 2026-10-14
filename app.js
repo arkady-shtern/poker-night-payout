@@ -1,0 +1,597 @@
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'poker-night-payout:v1';
+  // Exact minimisation is O(2^n · n); above this many people with a non-zero
+  // balance we fall back to the greedy method (at most n-1 payments).
+  const EXACT_LIMIT = 18;
+  const $ = (sel) => document.querySelector(sel);
+
+  // ---------- State ----------
+
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const blankPlayer = () => ({ id: uid(), name: '', buyIns: 1, final: '' });
+
+  function defaults() {
+    return {
+      currency: '$',
+      buyIn: 50,
+      useChips: false,
+      chipsPerBuyIn: 1000,
+      autoFix: false,
+      mode: 'min',
+      players: [blankPlayer(), blankPlayer(), blankPlayer(), blankPlayer()],
+      food: [],
+    };
+  }
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved && Array.isArray(saved.players)) return { ...defaults(), ...saved };
+    } catch { /* storage unavailable or corrupt: start fresh */ }
+    return defaults();
+  }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  }
+
+  let state = load();
+  if (!Array.isArray(state.food)) state.food = [];
+
+  // ---------- Money helpers (all maths in integer cents) ----------
+
+  const num = (v) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const toCents = (x) => Math.round(x * 100);
+
+  function fmt(cents, signed = false) {
+    const abs = Math.abs(cents) / 100;
+    const body = abs.toLocaleString(undefined, {
+      minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+      maximumFractionDigits: 2,
+    });
+    const sign = cents < 0 ? '−' : signed && cents > 0 ? '+' : '';
+    return `${sign}${state.currency}${body}`;
+  }
+
+  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+
+  const playerName = (p, i) => p.name.trim() || `Player ${i + 1}`;
+
+  // ---------- Food ----------
+
+  // Splits each item evenly (to the cent) among the ticked players.
+  // Returns per-player paid/share in cents plus per-item status.
+  function computeFood() {
+    const ids = new Set(state.players.map((p) => p.id));
+    const paid = new Map();
+    const share = new Map();
+    const add = (m, id, c) => m.set(id, (m.get(id) || 0) + c);
+    let total = 0;
+
+    const items = state.food.map((f) => {
+      const amt = toCents(num(f.amount));
+      const split = f.split.filter((id) => ids.has(id));
+      if (!amt) return { amt, split, ok: false, why: 'Enter an amount' };
+      if (!ids.has(f.payer)) return { amt, split, ok: false, why: 'Choose who paid' };
+      if (!split.length) return { amt, split, ok: false, why: 'Tick at least one person' };
+
+      total += amt;
+      add(paid, f.payer, amt);
+      const base = Math.floor(amt / split.length);
+      let rem = amt - base * split.length;
+      for (const id of split) {
+        add(share, id, base + (rem > 0 ? 1 : 0));
+        if (rem > 0) rem--;
+      }
+      return { amt, split, ok: true, each: amt / split.length };
+    });
+
+    return { paid, share, total, items };
+  }
+
+  // ---------- Poker + food balances ----------
+
+  function compute() {
+    const buyInC = toCents(num(state.buyIn));
+    const chips = num(state.chipsPerBuyIn);
+    const food = computeFood();
+
+    const rows = state.players.map((p, i) => {
+      const final = num(p.final);
+      const outC = state.useChips
+        ? (chips > 0 ? Math.round((final * buyInC) / chips) : 0)
+        : toCents(final);
+      const foodNet = (food.paid.get(p.id) || 0) - (food.share.get(p.id) || 0);
+      return {
+        id: p.id,
+        name: playerName(p, i),
+        inC: Math.round(num(p.buyIns) * buyInC),
+        outC,
+        payC: outC,
+        foodNet,
+        missing: String(p.final).trim() === '',
+      };
+    });
+
+    const totalIn = rows.reduce((s, r) => s + r.inC, 0);
+    const totalOut = rows.reduce((s, r) => s + r.outC, 0);
+    const diff = totalOut - totalIn;
+
+    let adjusted = false;
+    if (state.autoFix && diff !== 0 && totalOut > 0) {
+      scalePayouts(rows, totalIn, totalOut);
+      adjusted = true;
+    }
+
+    for (const r of rows) {
+      r.pokerNet = r.payC - r.inC;
+      r.net = r.pokerNet + r.foodNet;
+    }
+    const balanced = rows.reduce((s, r) => s + r.payC, 0) === totalIn;
+
+    return { rows, totalIn, totalOut, diff, adjusted, balanced, food };
+  }
+
+  // Scale cash-outs so they add up to exactly totalIn, handing leftover
+  // cents to the players with the largest rounding remainders.
+  function scalePayouts(rows, totalIn, totalOut) {
+    const parts = rows.map((r) => {
+      const exact = (r.outC * totalIn) / totalOut;
+      return { r, floor: Math.floor(exact), frac: exact - Math.floor(exact) };
+    });
+    let leftover = totalIn - parts.reduce((s, p) => s + p.floor, 0);
+    parts.sort((a, b) => b.frac - a.frac);
+    for (const p of parts) {
+      p.r.payC = p.floor + (leftover > 0 ? 1 : 0);
+      if (leftover > 0) leftover--;
+    }
+  }
+
+  // ---------- Settlement ----------
+
+  // Biggest debtor pays biggest creditor. For a group whose balances sum
+  // to zero this needs at most (group size - 1) payments.
+  function greedySettle(people) {
+    const take = (sign) => people
+      .filter((p) => sign * p.amt > 0)
+      .map((p) => ({ name: p.name, amt: sign * p.amt }))
+      .sort((a, b) => b.amt - a.amt);
+    const creditors = take(1);
+    const debtors = take(-1);
+    const transfers = [];
+    let i = 0, j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const amt = Math.min(debtors[i].amt, creditors[j].amt);
+      transfers.push({ from: debtors[i].name, to: creditors[j].name, amt });
+      debtors[i].amt -= amt;
+      creditors[j].amt -= amt;
+      if (debtors[i].amt === 0) i++;
+      if (creditors[j].amt === 0) j++;
+    }
+    return transfers;
+  }
+
+  // Provably minimal number of payments.
+  //
+  // With k people holding non-zero balances, any settlement needs at least
+  // k - g payments, where g is the largest number of disjoint groups whose
+  // balances each sum to zero (each group of size m settles in m - 1).
+  // We find that best partition with a subset DP:
+  //   dp[mask] = max over i in mask of dp[mask without i] + (sum[mask] == 0)
+  // then walk back through the DP to recover the groups, and settle each
+  // group greedily.
+  function minimalSettle(people) {
+    const list = people.filter((p) => p.amt !== 0);
+    const k = list.length;
+    if (k === 0) return { transfers: [], exact: true };
+    if (k > EXACT_LIMIT) return { transfers: greedySettle(list), exact: false };
+
+    const size = 1 << k;
+    const sum = new Float64Array(size);
+    const dp = new Int8Array(size);
+    for (let m = 1; m < size; m++) {
+      const low = m & -m;
+      sum[m] = sum[m ^ low] + list[31 - Math.clz32(low)].amt;
+      let best = 0;
+      for (let i = 0; i < k; i++) {
+        if (m & (1 << i) && dp[m ^ (1 << i)] > best) best = dp[m ^ (1 << i)];
+      }
+      dp[m] = best + (sum[m] === 0 ? 1 : 0);
+    }
+
+    const groups = [];
+    let current = [];
+    let m = size - 1;
+    while (m) {
+      const bonus = sum[m] === 0 ? 1 : 0;
+      let pick = 0;
+      while (!(m & (1 << pick)) || dp[m ^ (1 << pick)] + bonus !== dp[m]) pick++;
+      current.push(list[pick]);
+      m ^= 1 << pick;
+      if (sum[m] === 0) { groups.push(current); current = []; }
+    }
+
+    return { transfers: groups.flatMap(greedySettle), exact: true };
+  }
+
+  // Players settle among themselves: poker result and food in one balance.
+  function settleBetweenPlayers(rows) {
+    return minimalSettle(rows.map((r) => ({ name: r.name, amt: r.net })));
+  }
+
+  // Buy-ins went into a cash pot. The pot pays each player their stack, with
+  // the food balance folded in; anyone whose food share is bigger than their
+  // stack pays the difference into the pot.
+  function settleFromPot(rows) {
+    const transfers = rows
+      .map((r) => ({ r, amt: r.payC + r.foodNet }))
+      .filter((x) => x.amt !== 0)
+      .sort((a, b) => b.amt - a.amt)
+      .map(({ r, amt }) => amt > 0
+        ? { from: 'Pot', to: r.name, amt }
+        : { from: r.name, to: 'Pot', amt: -amt });
+    return { transfers, exact: true };
+  }
+
+  const currentSettlement = (result) =>
+    state.mode === 'bank' ? settleFromPot(result.rows) : settleBetweenPlayers(result.rows);
+
+  // ---------- Rendering: players ----------
+
+  const playersEl = $('#players');
+  const foodEl = $('#food');
+
+  function renderPlayers() {
+    const finalLabel = state.useChips ? 'Final chips' : 'Cash out';
+    playersEl.innerHTML = state.players.map((p, i) => `
+      <div class="row" data-id="${p.id}">
+        <div class="c-name">
+          <input type="text" data-field="name" value="${escapeHtml(p.name)}"
+                 placeholder="Player ${i + 1}" aria-label="Player ${i + 1} name">
+        </div>
+        <div class="c-buy" data-label="Buy-ins">
+          <div class="stepper">
+            <button type="button" data-step="-1" aria-label="One less buy-in">−</button>
+            <input type="number" data-field="buyIns" value="${escapeHtml(p.buyIns)}"
+                   min="0" step="0.5" inputmode="decimal" aria-label="Buy-ins">
+            <button type="button" data-step="1" aria-label="One more buy-in">+</button>
+          </div>
+        </div>
+        <div class="c-fin" data-label="${finalLabel}">
+          <input type="number" data-field="final" value="${escapeHtml(p.final)}"
+                 min="0" step="any" inputmode="decimal" placeholder="0" aria-label="${finalLabel}">
+        </div>
+        <div class="c-net num net"></div>
+        <div class="c-rm">
+          <button type="button" class="remove" data-remove aria-label="Remove player">×</button>
+        </div>
+      </div>`).join('');
+    $('#finalHead').textContent = finalLabel;
+    $('#playerCount').textContent = `${state.players.length} player${state.players.length === 1 ? '' : 's'}`;
+    renderFood();
+  }
+
+  // ---------- Rendering: food ----------
+
+  function renderFood() {
+    if (!state.food.length) {
+      foodEl.innerHTML = '<p class="muted">No food added yet.</p>';
+      update();
+      return;
+    }
+    const options = state.players.map((p, i) =>
+      `<option value="${p.id}">${escapeHtml(playerName(p, i))}</option>`).join('');
+
+    foodEl.innerHTML = state.food.map((f) => `
+      <div class="food-item" data-food="${f.id}">
+        <div class="food-main">
+          <input class="f-desc" type="text" data-ffield="desc" value="${escapeHtml(f.desc)}"
+                 placeholder="Pizza, beer, snacks…" aria-label="Food item">
+          <input type="number" data-ffield="amount" value="${escapeHtml(f.amount)}"
+                 min="0" step="any" inputmode="decimal" placeholder="Amount" aria-label="Amount">
+          <select data-ffield="payer" aria-label="Paid by">
+            <option value="">Paid by…</option>${options}
+          </select>
+          <button type="button" class="remove f-rm" data-fremove aria-label="Remove food item">×</button>
+        </div>
+        <div class="split">
+          <span class="lbl">Split between:</span>
+          ${state.players.map((p, i) => `
+            <label class="pill">
+              <input type="checkbox" data-split="${p.id}" ${f.split.includes(p.id) ? 'checked' : ''}>
+              <span>${escapeHtml(playerName(p, i))}</span>
+            </label>`).join('')}
+          <span class="food-info"></span>
+        </div>
+      </div>`).join('');
+
+    for (const f of state.food) {
+      foodEl.querySelector(`[data-food="${f.id}"] select`).value = f.payer;
+    }
+    update();
+  }
+
+  // ---------- Rendering: numbers, checks, settlement ----------
+
+  function update() {
+    const result = compute();
+    const { rows, totalIn, totalOut, diff, adjusted, food } = result;
+    const hasFood = food.total > 0;
+
+    for (const r of rows) {
+      const cell = playersEl.querySelector(`[data-id="${r.id}"] .c-net`);
+      if (!cell) continue;
+      cell.className = `c-net num net ${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}`;
+      const detail = hasFood
+        ? `poker ${fmt(r.pokerNet, true)} · food ${fmt(r.foodNet, true)}`
+        : `in ${fmt(r.inC)}`;
+      cell.innerHTML = `${fmt(r.net, true)}<span class="detail">${detail}</span>`;
+    }
+
+    state.food.forEach((f, i) => {
+      const info = foodEl.querySelector(`[data-food="${f.id}"] .food-info`);
+      if (!info) return;
+      const item = food.items[i];
+      info.className = `food-info ${item.ok ? '' : 'warn'}`;
+      info.textContent = item.ok
+        ? `${fmt(item.amt)} ÷ ${item.split.length} = ${fmt(Math.round(item.each))} each`
+        : item.why;
+    });
+    $('#foodTotal').textContent = hasFood ? `Total ${fmt(food.total)}` : '';
+
+    $('#totalIn').textContent = fmt(totalIn);
+    $('#totalOut').textContent = fmt(totalOut);
+    const diffEl = $('#diff');
+    diffEl.textContent = fmt(diff, true);
+    diffEl.className = `value ${diff > 0 ? 'pos' : diff < 0 ? 'neg' : ''}`;
+
+    const msg = $('#balanceMsg');
+    const missing = rows.filter((r) => r.missing).map((r) => r.name);
+    if (missing.length) {
+      msg.className = 'msg warn';
+      msg.textContent = `Still waiting on final ${state.useChips ? 'chip counts' : 'amounts'} for: ${missing.join(', ')}.`;
+    } else if (diff === 0) {
+      msg.className = 'msg ok';
+      msg.textContent = 'The bank balances: money in equals money out.';
+    } else if (adjusted) {
+      msg.className = 'msg warn';
+      msg.textContent = `Counts are off by ${fmt(diff, true)}. Every cash-out has been scaled proportionally to make it balance.`;
+    } else {
+      msg.className = 'msg warn';
+      msg.textContent = `Counts are off by ${fmt(diff, true)} (${diff > 0 ? 'more money out than in' : 'money left on the table'}). Recount the stacks, or turn on the fix below.`;
+    }
+
+    renderTransfers(result);
+    save();
+  }
+
+  function renderTransfers(result) {
+    const list = $('#transfers');
+    const badge = $('#optimality');
+    $('#modeHint').textContent = state.mode === 'bank'
+      ? 'Use this when everyone put cash into a pot at buy-in. The pot pays each player their stack, adjusted for food.'
+      : 'Use this when no cash changed hands during the game. Poker results and food are combined into the fewest payments.';
+
+    if (!result.balanced) {
+      badge.textContent = '';
+      list.innerHTML = '<li class="empty">Make the bank balance first. Total in must equal total out.</li>';
+      return;
+    }
+    const { transfers, exact } = currentSettlement(result);
+    if (!transfers.length) {
+      badge.textContent = '';
+      list.innerHTML = '<li class="empty">Nobody owes anything.</li>';
+      return;
+    }
+
+    const n = transfers.length;
+    badge.textContent = state.mode === 'bank'
+      ? `${n} payout${n === 1 ? '' : 's'} from the pot`
+      : exact
+        ? `${n} payment${n === 1 ? '' : 's'}: the fewest possible`
+        : `${n} payment${n === 1 ? '' : 's'} (near-minimal: too many players for the exact search)`;
+
+    list.innerHTML = transfers.map((t) => `
+      <li>
+        <strong>${escapeHtml(t.from)}</strong>
+        <span class="arrow">pays →</span>
+        <strong>${escapeHtml(t.to)}</strong>
+        <span class="amt">${fmt(t.amt)}</span>
+      </li>`).join('');
+  }
+
+  function summaryText() {
+    const result = compute();
+    const hasFood = result.food.total > 0;
+    const lines = [`♠♥ Poker night (${new Date().toLocaleDateString()}) ♣♦`, ''];
+
+    const sorted = [...result.rows].sort((a, b) => b.net - a.net);
+    for (const r of sorted) {
+      const detail = hasFood
+        ? `poker ${fmt(r.pokerNet, true)}, food ${fmt(r.foodNet, true)}`
+        : `in ${fmt(r.inC)}, out ${fmt(r.payC)}`;
+      lines.push(`${r.name}: ${fmt(r.net, true)} (${detail})`);
+    }
+
+    if (hasFood) {
+      lines.push('', `Food total: ${fmt(result.food.total)}`);
+      state.food.forEach((f, i) => {
+        const item = result.food.items[i];
+        if (!item.ok) return;
+        const payer = result.rows.find((r) => r.id === f.payer);
+        lines.push(`• ${f.desc.trim() || 'Food'}: ${fmt(item.amt)}, paid by ${payer.name}, split ${item.split.length} ways`);
+      });
+    }
+
+    lines.push('');
+    if (!result.balanced) {
+      lines.push(`Bank is off by ${fmt(result.diff, true)}. Not settled yet.`);
+    } else {
+      if (result.adjusted) lines.push(`(Cash-outs scaled to fix a ${fmt(result.diff, true)} counting error)`);
+      const { transfers } = currentSettlement(result);
+      lines.push(state.mode === 'bank' ? 'Pot payouts:' : `Payments (${transfers.length}):`);
+      if (!transfers.length) lines.push('Nobody owes anything.');
+      for (const t of transfers) lines.push(`• ${t.from} → ${t.to}: ${fmt(t.amt)}`);
+    }
+    return lines.join('\n');
+  }
+
+  // ---------- Events: settings ----------
+
+  function bindSetting(id, key, prop = 'value') {
+    const el = $(`#${id}`);
+    el[prop] = state[key];
+    el.addEventListener('input', () => {
+      state[key] = el[prop];
+      if (key === 'useChips') {
+        syncChipsField();
+        renderPlayers();
+      } else {
+        update();
+      }
+    });
+  }
+
+  function syncChipsField() {
+    $('#chipsField').classList.toggle('hidden', !state.useChips);
+  }
+
+  bindSetting('currency', 'currency');
+  bindSetting('buyIn', 'buyIn');
+  bindSetting('chipsPerBuyIn', 'chipsPerBuyIn');
+  bindSetting('useChips', 'useChips', 'checked');
+  bindSetting('autoFix', 'autoFix', 'checked');
+  syncChipsField();
+
+  for (const radio of document.querySelectorAll('input[name="mode"]')) {
+    radio.checked = radio.value === state.mode;
+    radio.addEventListener('change', () => { state.mode = radio.value; update(); });
+  }
+
+  // ---------- Events: players ----------
+
+  const playerOf = (el) => {
+    const row = el.closest('.row');
+    return row && state.players.find((p) => p.id === row.dataset.id);
+  };
+
+  playersEl.addEventListener('input', (e) => {
+    const field = e.target.dataset.field;
+    const p = playerOf(e.target);
+    if (!field || !p) return;
+    p[field] = e.target.value;
+    // Names also appear in the food section, so redraw it (focus stays here).
+    field === 'name' ? renderFood() : update();
+  });
+
+  playersEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    const p = btn && playerOf(btn);
+    if (!p) return;
+    if (btn.dataset.step) {
+      p.buyIns = Math.max(0, num(p.buyIns) + Number(btn.dataset.step));
+      btn.parentElement.querySelector('input').value = p.buyIns;
+      update();
+    } else if ('remove' in btn.dataset) {
+      state.players = state.players.filter((x) => x !== p);
+      for (const f of state.food) {
+        f.split = f.split.filter((id) => id !== p.id);
+        if (f.payer === p.id) f.payer = '';
+      }
+      renderPlayers();
+    }
+  });
+
+  $('#addPlayer').addEventListener('click', () => {
+    state.players.push(blankPlayer());
+    renderPlayers();
+    const inputs = playersEl.querySelectorAll('[data-field="name"]');
+    inputs[inputs.length - 1]?.focus();
+  });
+
+  // ---------- Events: food ----------
+
+  const foodOf = (el) => {
+    const item = el.closest('.food-item');
+    return item && state.food.find((f) => f.id === item.dataset.food);
+  };
+
+  function onFoodChange(e) {
+    const f = foodOf(e.target);
+    if (!f) return;
+    const { ffield, split } = e.target.dataset;
+    if (ffield) {
+      f[ffield] = e.target.value;
+    } else if (split) {
+      f.split = e.target.checked
+        ? [...new Set([...f.split, split])]
+        : f.split.filter((id) => id !== split);
+    } else {
+      return;
+    }
+    update();
+  }
+  foodEl.addEventListener('input', onFoodChange);
+
+  foodEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-fremove]');
+    const f = btn && foodOf(btn);
+    if (!f) return;
+    state.food = state.food.filter((x) => x !== f);
+    renderFood();
+  });
+
+  $('#addFood').addEventListener('click', () => {
+    state.food.push({
+      id: uid(),
+      desc: '',
+      amount: '',
+      payer: state.players[0]?.id || '',
+      split: state.players.map((p) => p.id),
+    });
+    renderFood();
+    const descs = foodEl.querySelectorAll('[data-ffield="desc"]');
+    descs[descs.length - 1]?.focus();
+  });
+
+  // ---------- Events: actions ----------
+
+  $('#newGame').addEventListener('click', () => {
+    if (!confirm('Start a new game? Names and settings are kept. Buy-ins, stacks and food are reset.')) return;
+    state.players = state.players.map((p) => ({ ...p, buyIns: 1, final: '' }));
+    state.food = [];
+    renderPlayers();
+  });
+
+  $('#clearAll').addEventListener('click', () => {
+    if (!confirm('Clear all players, food and settings?')) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    location.reload();
+  });
+
+  $('#copy').addEventListener('click', async () => {
+    const text = summaryText();
+    const msg = $('#copyMsg');
+    try {
+      await navigator.clipboard.writeText(text);
+      msg.textContent = 'Summary copied. Paste it into your group chat.';
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      msg.textContent = ok ? 'Summary copied.' : 'Copy failed. Your browser blocked clipboard access.';
+    }
+  });
+
+  renderPlayers();
+})();
