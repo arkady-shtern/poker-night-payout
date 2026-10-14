@@ -10,7 +10,10 @@ Open `index.html` in any browser. That's it, and it works offline.
 ## Features
 
 - **Buy-ins and rebuys**: use the −/+ stepper for each player. Half buy-ins work too.
-- **Money or chips**: enter final stacks as cash, or as chip counts converted with a chips-per-buy-in rate.
+- **NIS by default**: ₪ is the main currency, and $, € and £ are available.
+- **Chip rate**: set what the game money is worth, e.g. *10 chips = ₪1*. The page shows the buy-in in chips
+  (₪50 = 500 chips). You can enter final stacks as chip counts, and each one shows its ₪ value.
+- **Converter**: two linked boxes that convert between ₪ and chips both ways.
 - **Bank check**: checks that total in equals total out. If the chip count is off, it can scale every cash-out proportionally to fix it.
 - **Food and drinks**: log each item, who paid for it, and who shares it. It's split evenly to the cent and settled in the same payments as the poker money.
 - **Fewest possible payments**: finds the provably minimal set of payments (see below).

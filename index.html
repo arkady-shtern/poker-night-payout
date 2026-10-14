@@ -21,19 +21,37 @@
       <div class="settings">
         <label class="field">
           <span>Currency</span>
-          <input id="currency" type="text" maxlength="4" autocomplete="off">
+          <select id="currency">
+            <option value="₪">₪ NIS (Israeli shekel)</option>
+            <option value="$">$ USD</option>
+            <option value="€">€ EUR</option>
+            <option value="£">£ GBP</option>
+          </select>
         </label>
         <label class="field">
-          <span>Buy-in amount</span>
+          <span>Buy-in amount (<span class="cur"></span>)</span>
           <input id="buyIn" type="number" min="0" step="any" inputmode="decimal">
+        </label>
+        <label class="field">
+          <span>Chips per <span class="cur"></span>1</span>
+          <input id="chipRate" type="number" min="0" step="any" inputmode="decimal">
         </label>
         <label class="field check">
           <input id="useChips" type="checkbox">
-          <span>Count final stacks in chips</span>
+          <span>Enter final stacks in chips</span>
         </label>
-        <label class="field" id="chipsField">
-          <span>Chips per buy-in</span>
-          <input id="chipsPerBuyIn" type="number" min="0" step="any" inputmode="decimal">
+      </div>
+      <p class="rate-hint" id="rateHint"></p>
+      <div class="converter" aria-label="Money and chips converter">
+        <span class="lbl">Converter</span>
+        <label class="conv-box">
+          <span class="cur"></span>
+          <input id="convMoney" type="number" min="0" step="any" inputmode="decimal" placeholder="0" aria-label="Real money">
+        </label>
+        <span class="swap" aria-hidden="true">⇄</span>
+        <label class="conv-box">
+          <input id="convChips" type="number" min="0" step="any" inputmode="decimal" placeholder="0" aria-label="Chips">
+          <span>chips</span>
         </label>
       </div>
     </section>

@@ -141,7 +141,28 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--felt); }
 .field > span { color: var(--muted); }
 .field.check { flex-direction: row; align-items: center; gap: 8px; padding: 10px 0; }
 .field.check > span { color: var(--ink); }
-.field.hidden { display: none; }
+
+/* Chip rate and converter */
+.rate-hint { margin: 10px 0 0; font-size: 0.92rem; color: var(--muted); }
+.rate-hint strong { color: var(--ink); }
+.converter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at top, var(--felt-hi), var(--tile));
+  border: 2px solid var(--gold);
+  color: var(--tile-text);
+}
+.converter .lbl { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85; margin-right: 4px; }
+.conv-box { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.conv-box input { width: 120px; }
+.converter .swap { font-size: 1.2rem; color: var(--gold); }
+.conv { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.conv:empty { display: none; }
 
 /* Player rows */
 .row {

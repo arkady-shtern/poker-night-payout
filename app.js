@@ -2,6 +2,8 @@
   'use strict';
 
   const STORAGE_KEY = 'poker-night-payout:v1';
+  const STATE_VERSION = 2;
+  const CURRENCIES = ['₪', '$', '€', '£'];
   // Exact minimisation is O(2^n · n); above this many people with a non-zero
   // balance we fall back to the greedy method (at most n-1 payments).
   const EXACT_LIMIT = 18;
@@ -14,10 +16,11 @@
 
   function defaults() {
     return {
-      currency: '$',
+      version: STATE_VERSION,
+      currency: '₪',
       buyIn: 50,
       useChips: false,
-      chipsPerBuyIn: 1000,
+      chipRate: 10, // chips per 1 unit of real money
       autoFix: false,
       mode: 'min',
       players: [blankPlayer(), blankPlayer(), blankPlayer(), blankPlayer()],
@@ -28,17 +31,28 @@
   function load() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (saved && Array.isArray(saved.players)) return { ...defaults(), ...saved };
+      if (saved && Array.isArray(saved.players)) return migrate({ ...defaults(), ...saved });
     } catch { /* storage unavailable or corrupt: start fresh */ }
     return defaults();
+  }
+
+  function migrate(s) {
+    if (s.version !== STATE_VERSION) {
+      // v1 stored "chips per buy-in" and defaulted to dollars.
+      const buyIn = num(s.buyIn);
+      const perBuyIn = num(s.chipsPerBuyIn);
+      if (buyIn > 0 && perBuyIn > 0) s.chipRate = perBuyIn / buyIn;
+      delete s.chipsPerBuyIn;
+      s.currency = '₪';
+      s.version = STATE_VERSION;
+    }
+    if (!CURRENCIES.includes(s.currency)) s.currency = '₪';
+    return s;
   }
 
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }
-
-  let state = load();
-  if (!Array.isArray(state.food)) state.food = [];
 
   // ---------- Money helpers (all maths in integer cents) ----------
 
@@ -63,6 +77,19 @@
   ));
 
   const playerName = (p, i) => p.name.trim() || `Player ${i + 1}`;
+
+  // Loaded here, after the helpers that migrate() relies on.
+  let state = load();
+  if (!Array.isArray(state.food)) state.food = [];
+
+  // Chips <-> real money at the configured rate (chips per 1 unit of money).
+  const chipsToCents = (chips) => {
+    const rate = num(state.chipRate);
+    return rate > 0 ? Math.round((num(chips) * 100) / rate) : 0;
+  };
+  const centsToChips = (cents) => (cents / 100) * num(state.chipRate);
+  const fmtChips = (chips) =>
+    `${(Math.round(chips * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} chips`;
 
   // ---------- Food ----------
 
@@ -100,14 +127,10 @@
 
   function compute() {
     const buyInC = toCents(num(state.buyIn));
-    const chips = num(state.chipsPerBuyIn);
     const food = computeFood();
 
     const rows = state.players.map((p, i) => {
-      const final = num(p.final);
-      const outC = state.useChips
-        ? (chips > 0 ? Math.round((final * buyInC) / chips) : 0)
-        : toCents(final);
+      const outC = state.useChips ? chipsToCents(p.final) : toCents(num(p.final));
       const foodNet = (food.paid.get(p.id) || 0) - (food.share.get(p.id) || 0);
       return {
         id: p.id,
@@ -267,6 +290,7 @@
         <div class="c-fin" data-label="${finalLabel}">
           <input type="number" data-field="final" value="${escapeHtml(p.final)}"
                  min="0" step="any" inputmode="decimal" placeholder="0" aria-label="${finalLabel}">
+          <span class="conv"></span>
         </div>
         <div class="c-net num net"></div>
         <div class="c-rm">
@@ -325,7 +349,16 @@
     const { rows, totalIn, totalOut, diff, adjusted, food } = result;
     const hasFood = food.total > 0;
 
+    for (const el of document.querySelectorAll('.cur')) el.textContent = state.currency;
+    const rate = num(state.chipRate);
+    $('#rateHint').innerHTML = rate > 0
+      ? `<strong>${fmtChips(rate)} = ${fmt(100)}</strong> · one buy-in of ${fmt(toCents(num(state.buyIn)))} = <strong>${fmtChips(centsToChips(toCents(num(state.buyIn))))}</strong>`
+      : 'Set how many chips are worth 1 unit of money.';
+
     for (const r of rows) {
+      const conv = playersEl.querySelector(`[data-id="${r.id}"] .conv`);
+      if (conv) conv.textContent = state.useChips && !r.missing ? `= ${fmt(r.outC)}` : '';
+
       const cell = playersEl.querySelector(`[data-id="${r.id}"] .c-net`);
       if (!cell) continue;
       cell.className = `c-net num net ${r.net > 0 ? 'pos' : r.net < 0 ? 'neg' : ''}`;
@@ -451,24 +484,43 @@
     el.addEventListener('input', () => {
       state[key] = el[prop];
       if (key === 'useChips') {
-        syncChipsField();
         renderPlayers();
       } else {
+        if (key === 'chipRate') syncConverter('money');
         update();
       }
     });
   }
 
-  function syncChipsField() {
-    $('#chipsField').classList.toggle('hidden', !state.useChips);
-  }
-
   bindSetting('currency', 'currency');
   bindSetting('buyIn', 'buyIn');
-  bindSetting('chipsPerBuyIn', 'chipsPerBuyIn');
+  bindSetting('chipRate', 'chipRate');
   bindSetting('useChips', 'useChips', 'checked');
   bindSetting('autoFix', 'autoFix', 'checked');
-  syncChipsField();
+
+  // Two-way converter: typing in one box fills the other.
+  const convMoney = $('#convMoney');
+  const convChips = $('#convChips');
+  const round2 = (x) => String(Math.round(x * 100) / 100);
+
+  function syncConverter(from) {
+    const rate = num(state.chipRate);
+    if (from === 'money') {
+      if (convMoney.value === '') return;
+      convChips.value = rate > 0 ? round2(num(convMoney.value) * rate) : '';
+    } else {
+      if (convChips.value === '') return;
+      convMoney.value = rate > 0 ? round2(num(convChips.value) / rate) : '';
+    }
+  }
+  convMoney.addEventListener('input', () => {
+    if (convMoney.value === '') convChips.value = '';
+    syncConverter('money');
+  });
+  convChips.addEventListener('input', () => {
+    if (convChips.value === '') convMoney.value = '';
+    syncConverter('chips');
+  });
 
   for (const radio of document.querySelectorAll('input[name="mode"]')) {
     radio.checked = radio.value === state.mode;
