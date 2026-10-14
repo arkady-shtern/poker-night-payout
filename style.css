@@ -360,6 +360,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--felt); }
   margin: 3px;
 }
 .btn.chip:hover { background: #9a1a23; box-shadow: 0 0 0 3px #9a1a23, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.wa { background: #1f9e55; box-shadow: 0 0 0 3px #1f9e55, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip.wa:hover { background: #17834a; box-shadow: 0 0 0 3px #17834a, 0 4px 10px rgba(0, 0, 0, 0.25); }
 
 /* Totals as mini felt tiles */
 .totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }

@@ -678,6 +678,35 @@
     location.reload();
   });
 
+  // Short message for the group chat: a sign-off plus only the payments
+  // still to be made (anything already marked paid is left out).
+  function whatsappText() {
+    const result = compute();
+    if (!result.balanced) return null;
+    const paid = new Set(state.paid);
+    const { transfers } = currentSettlement(result);
+    const open = transfers.filter((t) => !paid.has(transferKey(t)));
+
+    const lines = ['*Good game!* 🃏♠️♥️', `Poker night ${new Date().toLocaleDateString()}`, ''];
+    if (!open.length) {
+      lines.push(transfers.length ? 'Everyone has paid. All settled ✅' : 'Nobody owes anything. All square ✅');
+    } else {
+      lines.push(state.mode === 'bank' ? 'Pot payouts:' : 'Payments:');
+      for (const t of open) lines.push(`• ${t.from} → ${t.to}: *${fmt(t.amt)}*`);
+    }
+    return lines.join('\n');
+  }
+
+  $('#whatsapp').addEventListener('click', () => {
+    const text = whatsappText();
+    if (!text) {
+      $('#copyMsg').textContent = 'Make the bank balance first, then share.';
+      return;
+    }
+    Sound.pay();
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  });
+
   $('#copy').addEventListener('click', async () => {
     const text = summaryText();
     const msg = $('#copyMsg');

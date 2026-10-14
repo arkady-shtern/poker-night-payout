@@ -19,7 +19,9 @@ It works offline. The fonts come from Google Fonts and fall back to system fonts
 - **Food and drinks**: log each item, who paid for it, and who shares it. It's split evenly to the cent and settled in the same payments as the poker money.
 - **Fewest possible payments**: finds the provably minimal set of payments (see below).
 - **Cash pot mode**: when buy-ins were paid in cash up front, the pot pays each player their stack, adjusted for food.
-- **Copy summary**: copies the results as text to paste into your group chat.
+- **Share on WhatsApp**: opens WhatsApp with a short message: *Good game!* followed by only the payments still
+  to be made. Payments already marked paid are left out.
+- **Copy summary**: copies the full results, with each player's breakdown and the food, as text.
 - **Mark payments as paid**: tap a payment to tick it off. The copied summary shows who has paid.
 - **Las Vegas look**: a neon sign inside a marquee of chasing bulbs, with cards and chips on the felt.
 - **Casino sounds**, synthesised with the Web Audio API (no audio files): a coin sound for buy-ins, a jackpot when the
