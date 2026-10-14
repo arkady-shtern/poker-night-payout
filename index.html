@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Limelight&family=Monoton&family=Outfit:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <div class="table-decor" id="decor" aria-hidden="true"></div>
@@ -114,8 +114,9 @@
       <p class="badge" id="optimality"></p>
       <ol id="transfers" class="transfers"></ol>
       <p class="muted tap-hint" id="tapHint" hidden>Tap a payment to mark it as paid.</p>
+      <button id="finish" class="btn chip gold finish-btn">🏆 Finish game: deal the cards</button>
+      <p class="finish-hint" id="finishHint"></p>
       <div class="actions">
-        <button id="finish" class="btn chip gold">🏆 Finish game</button>
         <button id="whatsapp" class="btn chip wa">Share on WhatsApp</button>
         <button id="copy" class="btn chip">Copy summary</button>
         <button id="newGame" class="btn">New game (keep players)</button>
@@ -138,7 +139,7 @@
     </div>
   </div>
 
-  <script src="sound.js"></script>
-  <script src="app.js"></script>
+  <script src="sound.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

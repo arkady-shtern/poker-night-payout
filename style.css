@@ -362,6 +362,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--felt); }
 .btn.chip:hover { background: #9a1a23; box-shadow: 0 0 0 3px #9a1a23, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.gold { color: #2a1a00; background: #e0b84a; border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 0 0 3px #c9971f, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.gold:hover { background: #d4a73a; box-shadow: 0 0 0 3px #b8861a, 0 4px 10px rgba(0, 0, 0, 0.25); }
+.btn.chip:disabled { opacity: 0.45; filter: grayscale(0.7); cursor: not-allowed; }
+.finish-btn { display: block; width: calc(100% - 6px); margin: 18px 3px 8px; padding: 14px 16px; font-size: 1.15rem; }
+.finish-hint { margin: 0 0 14px; text-align: center; font-size: 0.88rem; color: var(--warn-text); }
+.finish-hint:empty { display: none; }
 .btn.chip.dark { background: #1a1a1a; box-shadow: 0 0 0 3px #1a1a1a, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.dark:hover { background: #333; box-shadow: 0 0 0 3px #333, 0 4px 10px rgba(0, 0, 0, 0.25); }
 .btn.chip.wa { background: #1f9e55; box-shadow: 0 0 0 3px #1f9e55, 0 4px 10px rgba(0, 0, 0, 0.25); }

@@ -425,6 +425,11 @@
       ? 'Use this when everyone put cash into a pot at buy-in. The pot pays each player their stack, adjusted for food.'
       : 'Use this when no cash changed hands during the game. Poker results and food are combined into the fewest payments.';
 
+    $('#finish').disabled = !result.balanced;
+    $('#finishHint').textContent = result.balanced
+      ? ''
+      : 'Finish game unlocks once the bank balances (total in = total out).';
+
     const showEmpty = (text) => {
       badge.textContent = '';
       tapHint.hidden = true;
