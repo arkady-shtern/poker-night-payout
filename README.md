@@ -25,7 +25,7 @@ It works offline. The fonts come from Google Fonts and fall back to system fonts
   to be made. Payments already marked paid are left out.
 - **Copy summary**: copies the full results, with each player's breakdown and the food, as text.
 - **Mark payments as paid**: tap a payment to tick it off. The copied summary shows who has paid.
-- **Las Vegas look**: a neon sign inside a marquee of chasing bulbs, with cards and chips on the felt.
+- **Las Vegas look**: a starry Strip skyline glowing pink, cyan and gold, a neon sign inside a marquee of chasing bulbs, and lounge-dark panels with gold trim.
 - **Casino sounds**, synthesised with the Web Audio API (no audio files): a coin sound for buy-ins, a jackpot when the
   bank balances, and a payment chime when a payment is marked paid. The 🔊 button mutes them.
 - Saves automatically to the browser's local storage. Works on phones and in dark mode, and
@@ -58,8 +58,8 @@ No build step. Edit the files and open `index.html` in a browser.
 | `app.js` | State, money maths, food split, minimal-payment settlement, WhatsApp share |
 | `sound.js` | Coin, jackpot and payment sounds, synthesised with the Web Audio API |
 
-**Before pushing a change, bump the version number.** `index.html` loads its files as `style.css?v=7`,
-`sound.js?v=7` and `app.js?v=7`. Raise that number in all three places (e.g. to `v=8`) whenever you change any
+**Before pushing a change, bump the version number.** `index.html` loads its files as `style.css?v=8`,
+`sound.js?v=8` and `app.js?v=8`. Raise that number in all three places (e.g. to `v=9`) whenever you change any
 of them. Otherwise browsers may keep using a cached old copy for up to 10 minutes after a deploy.
 
 Every push to `main` deploys to GitHub Pages automatically within about a minute.
